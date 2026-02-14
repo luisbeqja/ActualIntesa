@@ -1,0 +1,23 @@
+{
+  "name": "actual-intesa",
+  "version": "1.0.0",
+  "description": "Sync Intesa San Paolo transactions to Actual Budget",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "setup": "node src/index.js --setup"
+  },
+  "keywords": [
+    "actual-budget",
+    "intesa-san-paolo",
+    "gocardless",
+    "open-banking"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^17.3.1",
+    "nordigen-node": "^1.4.1"
+  }
+}
