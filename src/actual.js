@@ -66,10 +66,6 @@ export async function validateConnection(serverUrl, password, budgetId, accountI
       );
     }
 
-    if (error.message?.includes("401") || error.message?.includes("Unauthorized")) {
-      throw new Error("Invalid password. Check your Actual Budget server password.");
-    }
-
     // Re-throw if already a formatted error
     if (error.message?.includes("Budget not found") ||
         error.message?.includes("Account ID") ||
@@ -77,7 +73,7 @@ export async function validateConnection(serverUrl, password, budgetId, accountI
       throw error;
     }
 
-    // Generic error
+    // Show the actual error for debugging
     throw new Error(`Actual Budget connection failed: ${error.message}`);
   } finally {
     // Always shut down to allow retries
