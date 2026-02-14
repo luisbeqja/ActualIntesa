@@ -87,7 +87,7 @@ async function openBrowser(url) {
 async function prompt(rl, question, defaultValue = "") {
   const displayDefault = defaultValue ? ` (default: ${defaultValue})` : "";
   const answer = await rl.question(`${question}${displayDefault}: `);
-  return answer.trim() || defaultValue;
+  return answer.trim().replace(/^['"]|['"]$/g, "") || defaultValue;
 }
 
 /**
