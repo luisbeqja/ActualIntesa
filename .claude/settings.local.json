@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(npm install:*)",
+      "Bash(node -e:*)",
+      "mcp__deepwiki__ask_question",
+      "Bash(grep:*)"
+    ]
+  }
+}

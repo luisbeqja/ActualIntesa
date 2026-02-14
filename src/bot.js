@@ -2,9 +2,10 @@ import "dotenv/config";
 import { writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { Telegraf } from "telegraf";
-import { authGuard } from "./bot/middleware.js";
+import { Telegraf, Scenes, session } from "telegraf";
+import { loadUser } from "./bot/middleware.js";
 import { registerCommands } from "./bot/commands.js";
+import { createSetupWizard, createConnectBankWizard } from "./bot/setup.js";
 
 // If ENABLEBANKING_KEY_CONTENT is set (e.g. on Railway), write it to a temp file
 // and point ENABLEBANKING_KEY_PATH to it
@@ -15,17 +16,31 @@ if (process.env.ENABLEBANKING_KEY_CONTENT && !process.env.ENABLEBANKING_KEY_PATH
 }
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
-const chatId = process.env.TELEGRAM_CHAT_ID;
 
-if (!token || !chatId) {
-  console.error("Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID in .env");
+if (!token) {
+  console.error("Missing TELEGRAM_BOT_TOKEN in .env");
   process.exit(1);
 }
 
 const bot = new Telegraf(token);
 
-// Only allow the owner's chat
-bot.use(authGuard(chatId));
+// Set up scenes (setup + bank connection wizards)
+const setupWizard = createSetupWizard();
+const connectBankWizard = createConnectBankWizard();
+const stage = new Scenes.Stage([setupWizard, connectBankWizard]);
+
+// Session middleware (required for scenes)
+bot.use(session());
+
+// Stage middleware (processes scene transitions)
+bot.use(stage.middleware());
+
+// Load user from DB on every request
+bot.use(loadUser());
+
+// /setup enters the wizard scene
+bot.command("setup", (ctx) => ctx.scene.enter("setup-wizard"));
+bot.command("connectbank", (ctx) => ctx.scene.enter("connectbank-wizard"));
 
 // Register all commands
 registerCommands(bot);
@@ -40,5 +55,5 @@ process.once("SIGTERM", stop);
 
 // Launch
 bot.launch().then(() => {
-  console.log("ActualIntesa bot started");
+  console.log("ActualIntesa bot started (multi-user mode)");
 });

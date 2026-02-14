@@ -1,12 +1,40 @@
+import { getUser } from "../db.js";
+
 /**
- * Auth guard middleware — rejects messages from non-owner chat IDs
- * @param {string} chatId - Authorized Telegram chat ID
- * @returns {Function} Telegraf middleware
+ * Middleware that looks up the user in DB and attaches to ctx.user.
+ * Does NOT block — just enriches the context for downstream handlers.
  */
-export function authGuard(chatId) {
+export function loadUser() {
   return (ctx, next) => {
-    if (String(ctx.chat?.id) !== String(chatId)) {
-      return ctx.reply("Unauthorized.");
+    const chatId = ctx.chat?.id;
+    if (chatId) {
+      ctx.user = getUser(chatId);
+    }
+    return next();
+  };
+}
+
+/**
+ * Middleware that requires a registered user.
+ * Replies with a prompt to /setup if not found.
+ */
+export function requireUser() {
+  return (ctx, next) => {
+    if (!ctx.user) {
+      return ctx.reply("You're not set up yet. Use /setup to get started.");
+    }
+    return next();
+  };
+}
+
+/**
+ * Middleware that requires admin (ADMIN_CHAT_ID from env).
+ */
+export function requireAdmin() {
+  const adminChatId = process.env.ADMIN_CHAT_ID;
+  return (ctx, next) => {
+    if (!adminChatId || String(ctx.chat?.id) !== String(adminChatId)) {
+      return ctx.reply("Admin only.");
     }
     return next();
   };
@@ -38,13 +66,13 @@ export async function withTyping(ctx, fn) {
 export function friendlyError(error) {
   const msg = error.message || "";
   if (msg.toLowerCase().includes("session") || msg.includes("401") || msg.includes("403")) {
-    return "Enable Banking session expired. Run the CLI setup again.";
+    return "Enable Banking session expired. Run /setup again to reconnect your bank.";
   }
   if (msg.includes("ECONNREFUSED")) {
     return "Cannot connect to Actual Budget server. Is it running?";
   }
   if (msg.includes("Budget not found")) {
-    return "Budget not found. Check ACTUAL_BUDGET_ID.";
+    return "Budget not found. Run /setup to reconfigure.";
   }
   return `Error: ${msg}`;
 }

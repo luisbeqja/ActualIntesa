@@ -2,4 +2,5 @@
 node_modules/
 .env
 actual-data
+data/
 *.pem

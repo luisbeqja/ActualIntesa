@@ -117,10 +117,33 @@ export function buildSyncMessage({ fetched, imported, updated, skipped, errors, 
 export function buildHelpMessage() {
   return (
     "<b>ActualIntesa Bot</b>\n\n" +
+    "/setup - Set up or reconfigure Actual Budget\n" +
+    "/connectbank - Connect your bank account\n" +
     "/sync - Sync bank transactions\n" +
     "/balance - Account balances\n" +
     "/transactions [N] - Recent transactions (default 10)\n" +
     "/spending [YYYY-MM] - Category spending breakdown\n" +
-    "/help - Show this message"
+    "/clear - Clear AI conversation history\n" +
+    "/help - Show this message\n\n" +
+    "Or just type any question to ask the AI about your finances.\n" +
+    "The AI remembers the last 10 messages for follow-ups.\n\n" +
+    "<b>AI Assistant</b>\n" +
+    "The AI can look up your financial data using these tools:\n" +
+    "- <b>Accounts</b> — balances, on/off-budget status\n" +
+    "- <b>Transactions</b> — search by date, account, with payee and category info\n" +
+    "- <b>Budget month</b> — category spending/income breakdown for a month\n" +
+    "- <b>Budget summary</b> — compare income and spending across months\n" +
+    "- <b>Categories</b> — list all budget categories and groups\n" +
+    "- <b>Payees</b> — list all merchants/payees\n\n" +
+    "<b>Example questions</b>\n" +
+    '<i>"How much did I spend this month?"</i>\n' +
+    '<i>"What were my top 5 expenses last week?"</i>\n' +
+    '<i>"How much did I pay at Lidl in January?"</i>\n' +
+    '<i>"Compare my spending in Jan vs Feb"</i>\n' +
+    '<i>"What is my account balance?"</i>\n\n' +
+    "<b>Admin</b>\n" +
+    "/invite - Generate an invite code\n" +
+    "/users - List registered users\n" +
+    "/revoke &lt;chatId&gt; - Remove a user"
   );
 }
