@@ -4,7 +4,7 @@ import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { exec } from "child_process";
 import { promisify } from "util";
-import * as gocardless from "./gocardless.js";
+import * as enablebanking from "./enablebanking.js";
 import { validateConnection } from "./actual.js";
 
 const execAsync = promisify(exec);
@@ -13,6 +13,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const projectRoot = join(__dirname, "..");
 const envPath = join(projectRoot, ".env");
+
+const CALLBACK_PORT = 3333;
+const REDIRECT_URL = `http://localhost:${CALLBACK_PORT}/callback`;
 
 /**
  * Loads existing .env values
@@ -101,103 +104,154 @@ export async function runSetup() {
 
     const existingEnv = loadEnvValues();
 
-    // Step 1: GoCardless credentials
-    console.log("Step 1: GoCardless API Credentials");
-    console.log("Get these from: https://bankaccountdata.gocardless.com → User secrets\n");
+    // Step 1: Enable Banking credentials
+    console.log("Step 1: Enable Banking API Credentials");
+    console.log("Register at: https://enablebanking.com/sign-in/");
+    console.log("Then create an application in the Control Panel.\n");
 
-    const secretId = existingEnv.GOCARDLESS_SECRET_ID ||
-      await prompt(rl, "GoCardless Secret ID");
-    const secretKey = existingEnv.GOCARDLESS_SECRET_KEY ||
-      await prompt(rl, "GoCardless Secret Key");
+    const appId = existingEnv.ENABLEBANKING_APP_ID ||
+      await prompt(rl, "Enable Banking Application ID");
 
-    if (!secretId || !secretKey) {
-      console.error("Error: GoCardless credentials are required");
+    let keyPath = existingEnv.ENABLEBANKING_KEY_PATH ||
+      await prompt(rl, "Path to private key (.pem file)", `./${appId}.pem`);
+
+    // Resolve relative path
+    if (!keyPath.startsWith("/")) {
+      keyPath = join(projectRoot, keyPath);
+    }
+
+    if (!existsSync(keyPath)) {
+      console.error(`\nError: Private key file not found at: ${keyPath}`);
+      console.error("Download it from the Enable Banking Control Panel when creating your application.");
       process.exit(1);
     }
 
-    // Step 2: Create GoCardless client and validate credentials
-    console.log("\nValidating GoCardless credentials...");
-    let client;
+    if (!appId) {
+      console.error("Error: Enable Banking Application ID is required");
+      process.exit(1);
+    }
+
+    // Step 2: Validate credentials
+    console.log("\nValidating Enable Banking credentials...");
     try {
-      client = await gocardless.createClient(secretId, secretKey);
-      console.log("✓ GoCardless credentials valid\n");
+      await enablebanking.validateCredentials(appId, keyPath);
+      console.log("✓ Enable Banking credentials valid\n");
     } catch (error) {
       console.error(`Error: ${error.message}`);
-      console.error("Please check your credentials and try again.");
+      console.error("Please check your Application ID and private key file.");
       process.exit(1);
     }
 
-    // Step 3: Create requisition for Intesa San Paolo
+    // Step 3: Find Intesa San Paolo and start bank authorization
     console.log("Step 2: Bank Connection");
-    console.log("Creating requisition for Intesa San Paolo...");
+    console.log("Searching for Intesa San Paolo...");
 
-    let requisitionId;
-    let authLink;
-
+    let banks;
     try {
-      const requisition = await gocardless.createRequisition(client);
-      requisitionId = requisition.requisitionId;
-      authLink = requisition.link;
-
-      console.log("✓ Requisition created\n");
-      console.log("Opening bank authentication page in your browser...");
-      console.log(`If browser doesn't open, visit: ${authLink}\n`);
-
-      await openBrowser(authLink);
-
-      console.log("Complete bank authentication in your browser.");
-      await rl.question("Press Enter when you've completed authentication...");
-
+      banks = await enablebanking.listBanks(appId, keyPath, "IT");
     } catch (error) {
-      console.error(`Error creating requisition: ${error.message}`);
+      console.error(`Error listing banks: ${error.message}`);
       process.exit(1);
     }
 
-    // Step 4: Wait for requisition to be linked
-    console.log("\nWaiting for bank authentication...");
+    const intesa = banks.find(
+      bank => bank.name.toLowerCase().includes("intesa") && bank.name.toLowerCase().includes("sanpaolo")
+    );
 
-    let accounts;
+    if (!intesa) {
+      console.error("Error: Intesa San Paolo not found in available banks.");
+      console.log("\nAvailable Italian banks:");
+      banks.slice(0, 20).forEach(bank => console.log(`  - ${bank.name}`));
+      if (banks.length > 20) console.log(`  ... and ${banks.length - 20} more`);
+      process.exit(1);
+    }
+
+    console.log(`✓ Found: ${intesa.name}\n`);
+
+    // Step 4: Start authorization flow
+    console.log("Starting bank authorization...");
+
+    let authResult;
     try {
-      accounts = await gocardless.waitForRequisition(client, requisitionId);
-      console.log(`✓ Bank authentication complete! Found ${accounts.length} account(s)\n`);
+      authResult = await enablebanking.startAuth(appId, keyPath, intesa.name, intesa.country, REDIRECT_URL);
+    } catch (error) {
+      console.error(`Error starting authorization: ${error.message}`);
+      process.exit(1);
+    }
+
+    const authUrl = authResult.url;
+
+    console.log("Opening bank authentication page in your browser...");
+    console.log(`If browser doesn't open, visit:\n${authUrl}\n`);
+
+    // Start local server to receive callback BEFORE opening browser
+    const callbackPromise = enablebanking.waitForCallback(CALLBACK_PORT);
+    await openBrowser(authUrl);
+
+    console.log("Complete bank authentication in your browser.");
+    console.log("Waiting for authorization callback...\n");
+
+    // Step 5: Wait for callback with authorization code
+    let authCode;
+    try {
+      authCode = await callbackPromise;
+      console.log("✓ Authorization code received\n");
     } catch (error) {
       console.error(`Error: ${error.message}`);
       process.exit(1);
     }
 
-    // Step 5: Select account (or auto-select if only one)
+    // Step 6: Create session and get accounts
+    console.log("Creating session...");
+
+    let session;
+    try {
+      session = await enablebanking.createSession(appId, keyPath, authCode);
+      console.log(`✓ Session created! Found ${session.accounts.length} account(s)\n`);
+    } catch (error) {
+      console.error(`Error creating session: ${error.message}`);
+      process.exit(1);
+    }
+
+    // Step 7: Select account
     let accountId;
-    if (accounts.length === 1) {
-      accountId = accounts[0];
+    if (session.accounts.length === 1) {
+      accountId = session.accounts[0].uid;
       console.log(`Using account: ${accountId}`);
     } else {
       console.log("Multiple accounts found:");
-      accounts.forEach((acc, idx) => {
-        console.log(`  ${idx + 1}. ${acc}`);
+      session.accounts.forEach((acc, idx) => {
+        const iban = acc.identification_hashes?.find(h => h.scheme === "IBAN")?.hash || acc.uid;
+        console.log(`  ${idx + 1}. ${acc.uid} (${iban})`);
       });
 
-      const selection = await prompt(rl, `Select account (1-${accounts.length})`, "1");
+      const selection = await prompt(rl, `Select account (1-${session.accounts.length})`, "1");
       const selectionIdx = parseInt(selection) - 1;
 
-      if (selectionIdx < 0 || selectionIdx >= accounts.length) {
+      if (selectionIdx < 0 || selectionIdx >= session.accounts.length) {
         console.error("Invalid selection");
         process.exit(1);
       }
 
-      accountId = accounts[selectionIdx];
+      accountId = session.accounts[selectionIdx].uid;
     }
 
-    // Step 6: Save GoCardless config
+    // Step 8: Save Enable Banking config
+    // Store key path as relative to project root
+    const relativeKeyPath = keyPath.startsWith(projectRoot)
+      ? "./" + keyPath.slice(projectRoot.length + 1)
+      : keyPath;
+
     saveEnvValues({
-      GOCARDLESS_SECRET_ID: secretId,
-      GOCARDLESS_SECRET_KEY: secretKey,
-      GOCARDLESS_REQUISITION_ID: requisitionId,
-      GOCARDLESS_ACCOUNT_ID: accountId,
+      ENABLEBANKING_APP_ID: appId,
+      ENABLEBANKING_KEY_PATH: relativeKeyPath,
+      ENABLEBANKING_SESSION_ID: session.session_id,
+      ENABLEBANKING_ACCOUNT_ID: accountId,
     });
 
-    console.log("\n✓ GoCardless configuration saved to .env\n");
+    console.log("\n✓ Enable Banking configuration saved to .env\n");
 
-    // Step 7: Actual Budget configuration
+    // Step 9: Actual Budget configuration
     const isSetupMode = process.argv.includes("--setup");
     const needsActualSetup = isSetupMode ||
       !existingEnv.ACTUAL_SERVER_URL ||
@@ -269,7 +323,7 @@ export async function runSetup() {
     // Final confirmation
     const finalEnv = loadEnvValues();
     console.log("=== Setup Complete! ===\n");
-    console.log(`✓ GoCardless: Connected (Account: ${finalEnv.GOCARDLESS_ACCOUNT_ID})`);
+    console.log(`✓ Enable Banking: Connected (Account: ${finalEnv.ENABLEBANKING_ACCOUNT_ID})`);
     console.log(`✓ Actual Budget: Connected (Budget: ${finalEnv.ACTUAL_BUDGET_ID})\n`);
     console.log("Run again to sync transactions. (coming in next update)");
 

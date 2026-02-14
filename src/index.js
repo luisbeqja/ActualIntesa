@@ -20,10 +20,10 @@ function hasRequiredConfig() {
 
   const content = readFileSync(envPath, "utf-8");
   const requiredKeys = [
-    "GOCARDLESS_SECRET_ID",
-    "GOCARDLESS_SECRET_KEY",
-    "GOCARDLESS_REQUISITION_ID",
-    "GOCARDLESS_ACCOUNT_ID",
+    "ENABLEBANKING_APP_ID",
+    "ENABLEBANKING_KEY_PATH",
+    "ENABLEBANKING_SESSION_ID",
+    "ENABLEBANKING_ACCOUNT_ID",
     "ACTUAL_SERVER_URL",
     "ACTUAL_PASSWORD",
     "ACTUAL_BUDGET_ID",

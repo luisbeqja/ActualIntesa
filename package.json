@@ -11,7 +11,7 @@
   "keywords": [
     "actual-budget",
     "intesa-san-paolo",
-    "gocardless",
+    "enable-banking",
     "open-banking"
   ],
   "author": "",
@@ -19,6 +19,6 @@
   "dependencies": {
     "@actual-app/api": "^26.2.0",
     "dotenv": "^17.3.1",
-    "nordigen-node": "^1.4.1"
+    "jose": "^6.1.3"
   }
 }
