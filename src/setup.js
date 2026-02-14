@@ -141,31 +141,39 @@ export async function runSetup() {
       process.exit(1);
     }
 
-    // Step 3: Find Intesa San Paolo and start bank authorization
-    console.log("Step 2: Bank Connection");
-    console.log("Searching for Intesa San Paolo...");
+    // Check if bank connection already exists (skip auth if session + account saved)
+    const isSetupMode = process.argv.includes("--setup");
+    const hasBankConnection = existingEnv.ENABLEBANKING_SESSION_ID && existingEnv.ENABLEBANKING_ACCOUNT_ID;
 
-    let banks;
-    try {
-      banks = await enablebanking.listBanks(appId, keyPath, "IT");
-    } catch (error) {
-      console.error(`Error listing banks: ${error.message}`);
-      process.exit(1);
-    }
+    if (hasBankConnection && !isSetupMode) {
+      console.log("✓ Bank connection already configured (session exists)\n");
+      console.log("  Run with --setup to reconnect.\n");
+    } else {
+      // Step 3: Find Intesa San Paolo and start bank authorization
+      console.log("Step 2: Bank Connection");
+      console.log("Searching for Intesa San Paolo...");
 
-    const intesa = banks.find(
-      bank => bank.name.toLowerCase().includes("intesa") && bank.name.toLowerCase().includes("sanpaolo")
-    );
+      let banks;
+      try {
+        banks = await enablebanking.listBanks(appId, keyPath, "IT");
+      } catch (error) {
+        console.error(`Error listing banks: ${error.message}`);
+        process.exit(1);
+      }
 
-    if (!intesa) {
-      console.error("Error: Intesa San Paolo not found in available banks.");
-      console.log("\nAvailable Italian banks:");
-      banks.slice(0, 20).forEach(bank => console.log(`  - ${bank.name}`));
-      if (banks.length > 20) console.log(`  ... and ${banks.length - 20} more`);
-      process.exit(1);
-    }
+      const intesa = banks.find(
+        bank => bank.name.toLowerCase().includes("intesa") && bank.name.toLowerCase().includes("sanpaolo")
+      );
 
-    console.log(`✓ Found: ${intesa.name}\n`);
+      if (!intesa) {
+        console.error("Error: Intesa San Paolo not found in available banks.");
+        console.log("\nAvailable Italian banks:");
+        banks.slice(0, 20).forEach(bank => console.log(`  - ${bank.name}`));
+        if (banks.length > 20) console.log(`  ... and ${banks.length - 20} more`);
+        process.exit(1);
+      }
+
+      console.log(`✓ Found: ${intesa.name}\n`);
 
     // Step 4: Start authorization flow
     console.log("Starting bank authorization...");
@@ -255,9 +263,9 @@ export async function runSetup() {
     });
 
     console.log("\n✓ Enable Banking configuration saved to .env\n");
+    } // end of bank connection else block
 
     // Step 9: Actual Budget configuration
-    const isSetupMode = process.argv.includes("--setup");
     const needsActualSetup = isSetupMode ||
       !existingEnv.ACTUAL_SERVER_URL ||
       !existingEnv.ACTUAL_PASSWORD ||
