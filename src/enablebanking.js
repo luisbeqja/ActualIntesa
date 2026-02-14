@@ -95,7 +95,7 @@ export async function listBanks(appId, privateKeyPath, country = "IT") {
  * @returns {Promise<Object>} Authorization URL and metadata
  */
 export async function startAuth(appId, privateKeyPath, aspspName, aspspCountry, redirectUrl) {
-  const validUntil = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+  const validUntil = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
 
   return apiRequest("POST", "/auth", appId, privateKeyPath, {
     access: { valid_until: validUntil },
