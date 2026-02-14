@@ -5,10 +5,10 @@ import { getUser } from "../db.js";
  * Does NOT block — just enriches the context for downstream handlers.
  */
 export function loadUser() {
-  return (ctx, next) => {
+  return async (ctx, next) => {
     const chatId = ctx.chat?.id;
     if (chatId) {
-      ctx.user = getUser(chatId);
+      ctx.user = await getUser(chatId);
     }
     return next();
   };

@@ -30,7 +30,7 @@ export function createSetupWizard() {
 
     // Step 0: Check if returning user or ask for invite code
     async (ctx) => {
-      const existing = getUser(ctx.chat.id);
+      const existing = await getUser(ctx.chat.id);
       if (existing) {
         ctx.wizard.state.data = {};
         ctx.wizard.state.isReturning = true;
@@ -53,7 +53,7 @@ export function createSetupWizard() {
         return;
       }
 
-      const used = useInviteCode(code, ctx.chat.id);
+      const used = await useInviteCode(code, ctx.chat.id);
       if (!used) {
         await ctx.reply("Invalid or already used invite code. Try again:");
         return;
@@ -142,7 +142,7 @@ export function createSetupWizard() {
       }
 
       // Save Actual Budget config
-      saveUser(ctx.chat.id, ctx.wizard.state.data);
+      await saveUser(ctx.chat.id, ctx.wizard.state.data);
 
       await ctx.reply(
         "Actual Budget connected!\n\n" +
@@ -233,7 +233,7 @@ export function createSetupWizard() {
 
         if (accounts.length === 1) {
           bankData.enablebanking_account_id = accounts[0].uid;
-          saveUser(ctx.chat.id, bankData);
+          await saveUser(ctx.chat.id, bankData);
           await ctx.reply(`Bank account connected: ${accounts[0].account_id?.iban || accounts[0].uid}`);
           await ctx.reply(finishMessage(true));
           return ctx.scene.leave();
@@ -267,7 +267,7 @@ export function createSetupWizard() {
         return;
       }
 
-      saveUser(ctx.chat.id, {
+      await saveUser(ctx.chat.id, {
         enablebanking_session_id: ctx.wizard.state.bankSessionId,
         enablebanking_account_id: accounts[idx].uid,
       });
@@ -296,7 +296,7 @@ export function createConnectBankWizard() {
 
     // Step 0: Start bank OAuth
     async (ctx) => {
-      const user = getUser(ctx.chat.id);
+      const user = await getUser(ctx.chat.id);
       if (!user) {
         await ctx.reply("Run /setup first to configure Actual Budget.");
         return ctx.scene.leave();
@@ -368,7 +368,7 @@ export function createConnectBankWizard() {
 
         if (accounts.length === 1) {
           bankData.enablebanking_account_id = accounts[0].uid;
-          saveUser(ctx.chat.id, bankData);
+          await saveUser(ctx.chat.id, bankData);
           await ctx.reply(`Bank account connected: ${accounts[0].account_id?.iban || accounts[0].uid}`);
           await ctx.reply("You can now use /sync to sync transactions.");
           return ctx.scene.leave();
@@ -400,7 +400,7 @@ export function createConnectBankWizard() {
         return;
       }
 
-      saveUser(ctx.chat.id, {
+      await saveUser(ctx.chat.id, {
         enablebanking_session_id: ctx.wizard.state.bankSessionId,
         enablebanking_account_id: accounts[idx].uid,
       });

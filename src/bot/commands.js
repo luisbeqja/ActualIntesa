@@ -66,7 +66,7 @@ export function registerCommands(bot) {
         const duration = ((Date.now() - startTime) / 1000).toFixed(1);
 
         // Update last_sync_date in DB
-        updateUser(ctx.chat.id, { last_sync_date: dateTo });
+        await updateUser(ctx.chat.id, { last_sync_date: dateTo });
 
         await ctx.replyWithHTML(buildSyncMessage({ fetched, imported, updated, skipped, errors, duration }));
       });
@@ -193,12 +193,12 @@ export function registerCommands(bot) {
   // --- Admin commands ---
 
   bot.command("invite", requireAdmin(), async (ctx) => {
-    const code = createInviteCode();
+    const code = await createInviteCode();
     await ctx.reply(`Invite code: ${code}`);
   });
 
   bot.command("users", requireAdmin(), async (ctx) => {
-    const users = listUsers();
+    const users = await listUsers();
     if (users.length === 0) {
       return ctx.reply("No registered users.");
     }
@@ -215,7 +215,7 @@ export function registerCommands(bot) {
     if (!targetChatId) {
       return ctx.reply("Usage: /revoke <chatId>");
     }
-    const deleted = deleteUser(targetChatId);
+    const deleted = await deleteUser(targetChatId);
     if (deleted) {
       await ctx.reply(`User ${targetChatId} has been removed.`);
     } else {

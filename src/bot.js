@@ -3,6 +3,7 @@ import { writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { Telegraf, Scenes, session } from "telegraf";
+import { initDb } from "./db.js";
 import { loadUser } from "./bot/middleware.js";
 import { registerCommands } from "./bot/commands.js";
 import { createSetupWizard, createConnectBankWizard } from "./bot/setup.js";
@@ -53,7 +54,13 @@ const stop = () => {
 process.once("SIGINT", stop);
 process.once("SIGTERM", stop);
 
-// Launch
-bot.launch().then(() => {
-  console.log("ActualIntesa bot started (multi-user mode)");
-});
+// Initialize DB and launch
+initDb()
+  .then(() => bot.launch())
+  .then(() => {
+    console.log("ActualIntesa bot started (multi-user mode)");
+  })
+  .catch((err) => {
+    console.error("Failed to start:", err);
+    process.exit(1);
+  });
