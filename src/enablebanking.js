@@ -81,7 +81,8 @@ export async function validateCredentials(appId, privateKeyPath) {
  * @returns {Promise<Object[]>} List of available banks
  */
 export async function listBanks(appId, privateKeyPath, country = "IT") {
-  return apiRequest("GET", `/aspsps?country=${country}`, appId, privateKeyPath);
+  const response = await apiRequest("GET", `/aspsps?country=${country}`, appId, privateKeyPath);
+  return response.aspsps || [];
 }
 
 /**
