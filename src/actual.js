@@ -1,10 +1,12 @@
 import api from "@actual-app/api";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import { mkdirSync, existsSync } from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const projectRoot = join(__dirname, "..");
+const dataDir = join(projectRoot, "actual-data");
 
 /**
  * Validates connection to Actual Budget server
@@ -16,10 +18,15 @@ const projectRoot = join(__dirname, "..");
  * @throws {Error} If connection fails with descriptive error message
  */
 export async function validateConnection(serverUrl, password, budgetId, accountId) {
+  // Ensure data directory exists
+  if (!existsSync(dataDir)) {
+    mkdirSync(dataDir, { recursive: true });
+  }
+
   try {
     // Initialize API with server connection
     await api.init({
-      dataDir: join(projectRoot, "actual-data"),
+      dataDir,
       serverURL: serverUrl,
       password: password,
     });
@@ -28,7 +35,6 @@ export async function validateConnection(serverUrl, password, budgetId, accountI
     try {
       await api.downloadBudget(budgetId);
     } catch (error) {
-      await api.shutdown();
       if (error.message?.includes("404") || error.message?.includes("not found")) {
         throw new Error(`Budget not found. Check your Budget Sync ID in Actual Budget → Settings → Advanced`);
       }
@@ -39,22 +45,17 @@ export async function validateConnection(serverUrl, password, budgetId, accountI
     const accounts = await api.getAccounts();
 
     if (!accounts || accounts.length === 0) {
-      await api.shutdown();
       throw new Error("No accounts found in budget");
     }
 
     const accountExists = accounts.some(acc => acc.id === accountId);
 
     if (!accountExists) {
-      await api.shutdown();
       const accountList = accounts.map(acc => `  - ${acc.name} (${acc.id})`).join("\n");
       throw new Error(
         `Account ID "${accountId}" not found in budget.\n\nAvailable accounts:\n${accountList}\n\nFind the account ID in the URL when viewing the account in Actual Budget.`
       );
     }
-
-    // Clean up
-    await api.shutdown();
 
     return true;
   } catch (error) {
@@ -78,5 +79,12 @@ export async function validateConnection(serverUrl, password, budgetId, accountI
 
     // Generic error
     throw new Error(`Actual Budget connection failed: ${error.message}`);
+  } finally {
+    // Always shut down to allow retries
+    try {
+      await api.shutdown();
+    } catch (_) {
+      // ignore shutdown errors
+    }
   }
 }
