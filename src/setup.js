@@ -14,8 +14,7 @@ const __dirname = dirname(__filename);
 const projectRoot = join(__dirname, "..");
 const envPath = join(projectRoot, ".env");
 
-const CALLBACK_PORT = 3333;
-const REDIRECT_URL = `http://localhost:${CALLBACK_PORT}/callback`;
+const REDIRECT_URL = "https://enablebanking.com";
 
 /**
  * Loads existing .env values
@@ -184,20 +183,26 @@ export async function runSetup() {
     console.log("Opening bank authentication page in your browser...");
     console.log(`If browser doesn't open, visit:\n${authUrl}\n`);
 
-    // Start local server to receive callback BEFORE opening browser
-    const callbackPromise = enablebanking.waitForCallback(CALLBACK_PORT);
     await openBrowser(authUrl);
 
     console.log("Complete bank authentication in your browser.");
-    console.log("Waiting for authorization callback...\n");
+    console.log("After authenticating, your browser will redirect to a page that may not load.");
+    console.log("Copy the FULL URL from your browser's address bar and paste it below.\n");
 
-    // Step 5: Wait for callback with authorization code
+    // Step 5: User pastes the redirect URL containing the authorization code
+    const redirectedUrl = await prompt(rl, "Paste the redirect URL here");
+
     let authCode;
     try {
-      authCode = await callbackPromise;
+      const parsed = new URL(redirectedUrl);
+      authCode = parsed.searchParams.get("code");
+      if (!authCode) {
+        throw new Error("No authorization code found in the URL");
+      }
       console.log("✓ Authorization code received\n");
     } catch (error) {
       console.error(`Error: ${error.message}`);
+      console.error("The URL should contain a 'code' parameter, e.g.: https://...?code=xxx");
       process.exit(1);
     }
 
