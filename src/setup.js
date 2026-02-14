@@ -5,6 +5,7 @@ import { dirname, join } from "path";
 import { exec } from "child_process";
 import { promisify } from "util";
 import * as gocardless from "./gocardless.js";
+import { validateConnection } from "./actual.js";
 
 const execAsync = promisify(exec);
 
@@ -196,7 +197,81 @@ export async function runSetup() {
 
     console.log("\n✓ GoCardless configuration saved to .env\n");
 
-    console.log("Setup complete! GoCardless connection established.");
+    // Step 7: Actual Budget configuration
+    const isSetupMode = process.argv.includes("--setup");
+    const needsActualSetup = isSetupMode ||
+      !existingEnv.ACTUAL_SERVER_URL ||
+      !existingEnv.ACTUAL_PASSWORD ||
+      !existingEnv.ACTUAL_BUDGET_ID ||
+      !existingEnv.ACTUAL_ACCOUNT_ID;
+
+    if (needsActualSetup) {
+      console.log("Step 3: Actual Budget Configuration\n");
+
+      let actualValid = false;
+      let actualServerUrl, actualPassword, actualBudgetId, actualAccountId;
+
+      while (!actualValid) {
+        actualServerUrl = await prompt(
+          rl,
+          "Actual Budget Server URL",
+          existingEnv.ACTUAL_SERVER_URL || "http://localhost:5006"
+        );
+
+        actualPassword = await prompt(
+          rl,
+          "Actual Budget Password",
+          existingEnv.ACTUAL_PASSWORD || ""
+        );
+
+        console.log("\nFind your Budget Sync ID in: Actual Budget → Settings → Advanced → Sync ID");
+        actualBudgetId = await prompt(
+          rl,
+          "Budget Sync ID",
+          existingEnv.ACTUAL_BUDGET_ID || ""
+        );
+
+        console.log("Find your Account ID in the URL when viewing the account in Actual Budget");
+        actualAccountId = await prompt(
+          rl,
+          "Account ID",
+          existingEnv.ACTUAL_ACCOUNT_ID || ""
+        );
+
+        if (!actualServerUrl || !actualPassword || !actualBudgetId || !actualAccountId) {
+          console.error("\nError: All Actual Budget fields are required\n");
+          continue;
+        }
+
+        // Validate connection
+        console.log("\nValidating Actual Budget connection...");
+        try {
+          await validateConnection(actualServerUrl, actualPassword, actualBudgetId, actualAccountId);
+          console.log("✓ Actual Budget connection valid\n");
+          actualValid = true;
+        } catch (error) {
+          console.error(`\nError: ${error.message}\n`);
+          console.log("Please check your credentials and try again.\n");
+        }
+      }
+
+      // Save Actual Budget config
+      saveEnvValues({
+        ACTUAL_SERVER_URL: actualServerUrl,
+        ACTUAL_PASSWORD: actualPassword,
+        ACTUAL_BUDGET_ID: actualBudgetId,
+        ACTUAL_ACCOUNT_ID: actualAccountId,
+      });
+
+      console.log("✓ Actual Budget configuration saved to .env\n");
+    }
+
+    // Final confirmation
+    const finalEnv = loadEnvValues();
+    console.log("=== Setup Complete! ===\n");
+    console.log(`✓ GoCardless: Connected (Account: ${finalEnv.GOCARDLESS_ACCOUNT_ID})`);
+    console.log(`✓ Actual Budget: Connected (Budget: ${finalEnv.ACTUAL_BUDGET_ID})\n`);
+    console.log("Run again to sync transactions. (coming in next update)");
 
   } catch (error) {
     console.error(`\nSetup failed: ${error.message}`);

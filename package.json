@@ -17,6 +17,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@actual-app/api": "^26.2.0",
     "dotenv": "^17.3.1",
     "nordigen-node": "^1.4.1"
   }
