@@ -84,3 +84,43 @@ export async function validateConnection(serverUrl, password, budgetId, accountI
     }
   }
 }
+
+/**
+ * Imports transactions into Actual Budget
+ * @param {string} serverUrl - Actual Budget server URL
+ * @param {string} password - Actual Budget password
+ * @param {string} budgetId - Budget sync ID
+ * @param {string} accountId - Account ID to import to
+ * @param {Object[]} transactions - Array of transaction objects with date, amount, payee_name, imported_id, notes, cleared
+ * @returns {Promise<Object>} Result object with added, updated, errors arrays
+ */
+export async function importTransactions(serverUrl, password, budgetId, accountId, transactions) {
+  // Ensure data directory exists
+  if (!existsSync(dataDir)) {
+    mkdirSync(dataDir, { recursive: true });
+  }
+
+  try {
+    // Initialize API with server connection
+    await api.init({
+      dataDir,
+      serverURL: serverUrl,
+      password: password,
+    });
+
+    // Download budget
+    await api.downloadBudget(budgetId);
+
+    // Import transactions using Actual Budget API
+    const result = await api.importTransactions(accountId, transactions);
+
+    return result;
+  } finally {
+    // Always shut down
+    try {
+      await api.shutdown();
+    } catch (_) {
+      // ignore shutdown errors
+    }
+  }
+}

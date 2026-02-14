@@ -129,6 +129,56 @@ export async function getSession(appId, privateKeyPath, sessionId) {
 }
 
 /**
+ * Fetches transactions for an account within a date range
+ * @param {string} appId - Application ID
+ * @param {string} privateKeyPath - Path to private key
+ * @param {string} accountId - Account ID
+ * @param {string} dateFrom - Start date (YYYY-MM-DD)
+ * @param {string} dateTo - End date (YYYY-MM-DD)
+ * @returns {Promise<Object[]>} Array of transactions
+ */
+export async function getTransactions(appId, privateKeyPath, accountId, dateFrom, dateTo) {
+  const allTransactions = [];
+  let continuationKey = null;
+
+  do {
+    // Build query params
+    const params = new URLSearchParams({
+      date_from: dateFrom,
+      date_to: dateTo,
+    });
+
+    if (continuationKey) {
+      params.append("continuation_key", continuationKey);
+    }
+
+    const path = `/accounts/${accountId}/transactions?${params.toString()}`;
+
+    try {
+      const response = await apiRequest("GET", path, appId, privateKeyPath);
+
+      // Accumulate transactions
+      if (response.transactions && Array.isArray(response.transactions)) {
+        allTransactions.push(...response.transactions);
+      }
+
+      // Check for pagination
+      continuationKey = response.continuation_key || null;
+    } catch (error) {
+      // Detect session/auth errors and make them identifiable
+      if (error.message.includes("401") || error.message.includes("403") ||
+          error.message.toLowerCase().includes("unauthorized") ||
+          error.message.toLowerCase().includes("authentication")) {
+        throw new Error(`Enable Banking session error: ${error.message}`);
+      }
+      throw error;
+    }
+  } while (continuationKey);
+
+  return allTransactions;
+}
+
+/**
  * Waits for the OAuth callback on a local HTTP server
  * @param {number} port - Port for the local server (default: 3333)
  * @returns {Promise<string>} Authorization code
