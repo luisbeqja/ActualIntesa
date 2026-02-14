@@ -3,6 +3,7 @@ import { importTransactions } from "./actual.js";
 import { readFileSync, writeFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import ora from "ora";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -92,9 +93,26 @@ function mapTransaction(tx) {
 }
 
 /**
- * Runs the full transaction sync flow
+ * Formats amount in cents as EUR string
+ * @param {number} cents - Amount in cents
+ * @returns {string} Formatted EUR string
  */
-export async function runSync() {
+function formatAmount(cents) {
+  const euros = cents / 100;
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'EUR'
+  }).format(euros);
+}
+
+/**
+ * Runs the full transaction sync flow
+ * @param {Object} options - Sync options
+ * @param {boolean} options.dryRun - If true, fetch and preview without importing
+ */
+export async function runSync({ dryRun = false } = {}) {
+  const startTime = Date.now();
+
   // Read config from environment
   const appId = process.env.ENABLEBANKING_APP_ID;
   const keyPath = process.env.ENABLEBANKING_KEY_PATH;
@@ -120,40 +138,97 @@ export async function runSync() {
 
   const dateTo = new Date().toISOString().split("T")[0]; // Today
 
-  console.log(`\nSyncing transactions from ${dateFrom} to ${dateTo}...`);
+  if (dryRun) {
+    console.log("\n[DRY RUN MODE] - No data will be imported\n");
+  }
 
-  // Fetch transactions from Enable Banking
+  // Step 1: Fetch transactions from Enable Banking
+  const spinner = ora({
+    text: `Fetching transactions from ${dateFrom} to ${dateTo}...`,
+    spinner: 'dots'
+  }).start();
+
   let transactions;
+  let fetchDuration = 0;
+
   try {
+    const fetchStart = Date.now();
     transactions = await getTransactions(appId, keyPath, ebAccountId, dateFrom, dateTo);
+    fetchDuration = ((Date.now() - fetchStart) / 1000).toFixed(1);
+    spinner.succeed(`Fetched ${transactions.length} transactions (${fetchDuration}s)`);
   } catch (error) {
     // Check for session/auth errors
     if (error.message.toLowerCase().includes("session") ||
         error.message.includes("401") ||
         error.message.includes("403")) {
-      console.error("\nEnable Banking session expired or invalid. Run with --setup to reconnect.");
+      spinner.fail("Enable Banking session expired or invalid");
+      console.error("\nRun with --setup to reconnect.");
       process.exit(1);
     }
+    spinner.fail(`Failed to fetch transactions: ${error.message}`);
     throw error;
   }
-
-  console.log(`Fetched ${transactions.length} transactions from Enable Banking (${dateFrom} to ${dateTo})`);
 
   // Map transactions to Actual Budget format
   const mappedTransactions = transactions.map(mapTransaction);
 
-  // Import to Actual Budget
-  const result = await importTransactions(serverUrl, password, budgetId, actualAccountId, mappedTransactions);
+  // DRY RUN: Preview and exit
+  if (dryRun) {
+    console.log("\nTransactions to be imported:\n");
 
-  console.log(`Imported: ${result.added?.length || 0} new, ${result.updated?.length || 0} updated`);
+    if (mappedTransactions.length === 0) {
+      console.log("  (none)");
+    } else {
+      // Display preview table
+      mappedTransactions.forEach(tx => {
+        const amount = formatAmount(tx.amount);
+        const payee = (tx.payee_name || '(unknown)').substring(0, 30);
+        const notes = (tx.notes || '').substring(0, 40);
+        console.log(`  ${tx.date}  ${amount.padStart(12)}  ${payee.padEnd(30)}  ${notes}`);
+      });
+    }
+
+    console.log(`\n✔ Dry run: ${mappedTransactions.length} transactions would be imported`);
+    return;
+  }
+
+  // Step 2: Import to Actual Budget
+  let result;
+  let importDuration = 0;
+
+  const importSpinner = ora({
+    text: 'Importing to Actual Budget...',
+    spinner: 'dots'
+  }).start();
+
+  try {
+    const importStart = Date.now();
+    result = await importTransactions(serverUrl, password, budgetId, actualAccountId, mappedTransactions);
+    importDuration = ((Date.now() - importStart) / 1000).toFixed(1);
+    importSpinner.succeed(`Imported to Actual Budget (${importDuration}s)`);
+  } catch (error) {
+    importSpinner.fail(`Failed to import: ${error.message}`);
+    throw error;
+  }
+
+  // Build summary
+  const fetched = transactions.length;
+  const imported = result.added?.length || 0;
+  const updated = result.updated?.length || 0;
+  const skipped = fetched - imported - updated;
+  const errors = result.errors?.length || 0;
+
+  // Print concise one-line summary
+  const totalDuration = ((Date.now() - startTime) / 1000).toFixed(1);
+  console.log(`\n✔ Synced: ${fetched} fetched, ${imported} imported, ${skipped} skipped, ${errors} errors (${totalDuration}s total)`);
 
   // Log errors if any
-  if (result.errors && result.errors.length > 0) {
+  if (errors > 0) {
     console.error("\nImport errors:");
     result.errors.forEach(err => console.error(`  - ${err}`));
   }
 
   // Save last sync date to .env
   updateEnvValue("LAST_SYNC_DATE", dateTo);
-  console.log(`\nSync complete. Last sync date saved: ${dateTo}`);
+  console.log(`Last sync date saved: ${dateTo}`);
 }
