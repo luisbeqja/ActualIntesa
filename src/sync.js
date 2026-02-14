@@ -15,7 +15,7 @@ const envPath = join(projectRoot, ".env");
  * @param {string} key - Environment variable key
  * @param {string} value - Environment variable value
  */
-function updateEnvValue(key, value) {
+export function updateEnvValue(key, value) {
   let content = "";
 
   if (readFileSync(envPath, "utf-8")) {
@@ -40,7 +40,7 @@ function updateEnvValue(key, value) {
  * @param {Object} tx - Enable Banking transaction object
  * @returns {Object} Actual Budget transaction format
  */
-function mapTransaction(tx) {
+export function mapTransaction(tx) {
   // Date: use first available
   const date = tx.booking_date || tx.value_date || tx.transaction_date;
 
