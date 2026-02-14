@@ -42,11 +42,13 @@ function hasRequiredConfig() {
  */
 async function main() {
   const isSetupMode = process.argv.includes("--setup");
+  const isDryRun = process.argv.includes("--dry-run");
 
+  // Setup takes priority over dry-run
   if (isSetupMode || !hasRequiredConfig()) {
     await runSetup();
   } else {
-    await runSync();
+    await runSync({ dryRun: isDryRun });
   }
 }
 
