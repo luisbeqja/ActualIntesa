@@ -1,7 +1,18 @@
 import "dotenv/config";
+import { writeFileSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
 import { Telegraf } from "telegraf";
 import { authGuard } from "./bot/middleware.js";
 import { registerCommands } from "./bot/commands.js";
+
+// If ENABLEBANKING_KEY_CONTENT is set (e.g. on Railway), write it to a temp file
+// and point ENABLEBANKING_KEY_PATH to it
+if (process.env.ENABLEBANKING_KEY_CONTENT && !process.env.ENABLEBANKING_KEY_PATH) {
+  const keyPath = join(tmpdir(), "enablebanking-key.pem");
+  writeFileSync(keyPath, process.env.ENABLEBANKING_KEY_CONTENT, "utf-8");
+  process.env.ENABLEBANKING_KEY_PATH = keyPath;
+}
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
 const chatId = process.env.TELEGRAM_CHAT_ID;
