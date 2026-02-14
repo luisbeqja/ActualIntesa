@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { runSetup } from "./setup.js";
+import { runSync } from "./sync.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -45,9 +46,7 @@ async function main() {
   if (isSetupMode || !hasRequiredConfig()) {
     await runSetup();
   } else {
-    console.log("Setup complete. Configuration found in .env");
-    console.log("Run with --setup to reconfigure.");
-    console.log("\n(Transaction sync will be added in Phase 2)");
+    await runSync();
   }
 }
 
